@@ -82,7 +82,8 @@ def process(update):
     note = store.save_note(chat_id, message_id, text, result["score"],
                            result["reason"], "drafted")
     store.save_draft(note["id"] if note else None, chat_id, result["post"],
-                     result["model"], result.get("news"))
+                     result["model"], result.get("news"),
+                     result.get("claims"), result.get("claim_model"))
     telegram.send(chat_id, "Score %d/10 - %s" % (result["score"], result["reason"]),
                   reply_to=message_id)
     telegram.send(chat_id, result["post"])

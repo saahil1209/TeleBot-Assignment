@@ -29,7 +29,9 @@ Telegram  ──▶  /api/webhook
                         │
                         ├─ keywords ──▶ Google News RSS ──▶ top result
                         ├─ draft (Claude, voice skill as system instruction)
+                        ├─ audit every claim back to the note / news item
                         ├─ append verify block if the news item was used
+                        ├─ append unverified-claims flag if any claim is loose
                         ├─ save note + draft to Supabase (status: pending)
                         └─ send the draft back to Telegram
 ```
@@ -55,6 +57,32 @@ A fact published in her name that she has not checked is the exact failure this
 pipeline exists to prevent. The model is told to set `used_news` to false and
 ignore the item when it does not fit naturally, so the block only appears when
 the news actually made it into the post.
+
+## Claim audit
+
+The drafting prompt forbids inventing facts. That is a request, not a
+guarantee: the first live draft produced two claims found nowhere in the note -
+an industry pH norm and a statement about cutaneous vasodilation. Both were
+plausible, which is what made them dangerous. Fluent prose hides an unsourced
+claim well.
+
+So after drafting, a Flash call audits the post against its own two permitted
+sources and returns anything untraceable. Plausibility is explicitly not the
+test - traceability is, because a true claim she cannot source is still one she
+would be publishing on someone else's authority. Anything flagged is appended
+to the draft:
+
+```
+─────────────────────────────────
+⚠ UNVERIFIED CLAIMS (2)
+Not traceable to your note:
+- "..."
+Cut them or confirm them before publishing.
+─────────────────────────────────
+```
+
+The flags are stored per draft in `drafts.unsupported_claims`, so the rate is
+measurable over time rather than surfacing once in Telegram and vanishing.
 
 ## Voice
 

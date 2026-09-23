@@ -82,10 +82,13 @@ def save_note(chat_id, message_id, content, score, reason, status):
     return rows[0] if rows else None
 
 
-def save_draft(note_id, chat_id, content, model, news=None):
+def save_draft(note_id, chat_id, content, model, news=None, claims=None,
+               claim_model=None):
     row = {
         "note_id": note_id, "chat_id": chat_id, "content": content,
         "model": model, "status": "pending",
+        "unsupported_claims": claims or [],
+        "claim_check_model": claim_model,
     }
     if news:
         row.update({

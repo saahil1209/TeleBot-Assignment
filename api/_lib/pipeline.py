@@ -87,6 +87,54 @@ use - every example in it illustrates a shape, never a claim about her.
    If it does not fit naturally, ignore it and set used_news to false. Never
    force it."""
 
+CLAIM_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "unsupported": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {"type": "string"},
+                    "why": {"type": "string"},
+                },
+                "required": ["claim"],
+            },
+        }
+    },
+    "required": ["unsupported"],
+}
+
+CLAIM_SYSTEM = """You audit a draft post against the only two sources it was
+allowed to use: a note, and possibly a news item.
+
+Return every factual claim in the post that cannot be traced to one of those
+sources. A factual claim is anything a reader could check and find wrong -
+a number, a date, a mechanism, an industry norm, a statement about what other
+companies or regulators do.
+
+Include a claim even when it is probably true. Plausibility is not the test;
+traceability is. A true claim the author cannot source is still a claim she
+would be publishing on someone else's authority.
+
+Do not include:
+  - opinions, judgments or arguments
+  - restatements of something in the note, even in different words
+  - reasoning that follows from facts in the note
+
+Quote each claim in `claim` exactly as it appears in the post, trimmed to the
+sentence. Put in `why` the reason it is not traceable, in one short clause.
+Return an empty array when everything traces."""
+
+FLAG_TEMPLATE = """
+
+─────────────────────────────────
+⚠ UNVERIFIED CLAIMS (%d)
+Not traceable to your note%s:
+%s
+Cut them or confirm them before publishing.
+─────────────────────────────────"""
+
 VERIFY_TEMPLATE = """
 
 ─────────────────────────────────
@@ -181,6 +229,33 @@ def draft(note_text, voice_skill, news_item=None, backend=None):
     return post, model, used
 
 
+def check_claims(post, note_text, news_item=None):
+    """Return (unsupported_claims, model). Never raises - a failed audit must
+    not lose a draft, but it also must not silently look like a clean one."""
+    sources = ["NOTE:\n%s" % note_text]
+    if news_item:
+        sources.append("NEWS ITEM:\n  headline: %s\n  source: %s\n  summary: %s"
+                       % (news_item["headline"], news_item["source"],
+                          news_item.get("summary", "")))
+    body = post.split("─────")[0].strip()
+    try:
+        text, model = gemini.generate(
+            "%s\n\n---\n\nPOST:\n%s" % ("\n\n".join(sources), body),
+            kind="fast", system=CLAIM_SYSTEM, schema=CLAIM_SCHEMA, temperature=0.1,
+        )
+        return json.loads(text).get("unsupported", []), model
+    except Exception:
+        return [], None
+
+
+def flag_block(claims, has_news):
+    if not claims:
+        return ""
+    lines = "\n".join("- \"%s\"" % c.get("claim", "").strip() for c in claims)
+    return FLAG_TEMPLATE % (len(claims),
+                            " or the news item" if has_news else "", lines)
+
+
 def run(note_text):
     """Full pass. Returns a dict describing what happened."""
     value, reason, score_model = score(note_text)
@@ -195,5 +270,13 @@ def run(note_text):
 
     item = news.top_result(search_phrase(note_text))
     post, model, used = draft(note_text, voice, item)
+
+    # The hard rules tell the drafting model not to invent facts. They are a
+    # request, not a guarantee, so the draft is audited against its own sources
+    # and anything untraceable is surfaced rather than left in fluent prose.
+    claims, claim_model = check_claims(post, note_text, used)
+    post += flag_block(claims, bool(used))
+
     return {"drafted": True, "score": value, "reason": reason,
-            "score_model": score_model, "post": post, "model": model, "news": used}
+            "score_model": score_model, "post": post, "model": model,
+            "news": used, "claims": claims, "claim_model": claim_model}
