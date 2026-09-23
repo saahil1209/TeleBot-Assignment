@@ -96,8 +96,26 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def do_GET(self):
-        self._respond(200, {"ok": True, "service": "skinstinct-telebot",
-                            "threshold": pipeline.THRESHOLD})
+        # Booleans and lengths only - never the values. Enough to tell a missing
+        # variable from a malformed one (a trailing newline on a pasted token is
+        # the classic cause of a bot that authenticates locally but not here).
+        def probe(name):
+            raw = config.get(name)
+            if not raw:
+                return False
+            return {"set": True, "len": len(raw), "clean": raw == raw.strip()}
+
+        self._respond(200, {
+            "ok": True,
+            "service": "skinstinct-telebot",
+            "threshold": pipeline.THRESHOLD,
+            "backend": pipeline._backend(),
+            "env": {n: probe(n) for n in (
+                "TELEGRAM_BOT_TOKEN", "GEMINI_API_KEY",
+                "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
+                "ANTHROPIC_API_KEY", "TELEGRAM_WEBHOOK_SECRET",
+            )},
+        })
 
     def do_POST(self):
         secret = config.get("TELEGRAM_WEBHOOK_SECRET")
