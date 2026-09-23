@@ -1,0 +1,2 @@
+# No third-party packages. Everything uses the Python standard library so the
+# Vercel function stays small and cold starts stay fast.

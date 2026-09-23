@@ -1,0 +1,7 @@
+.env
+.env.local
+.ingest-state.json
+__pycache__/
+*.pyc
+.vercel
+node_modules/
