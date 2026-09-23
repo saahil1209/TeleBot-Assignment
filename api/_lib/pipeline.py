@@ -4,7 +4,7 @@ import json
 import re
 from email.utils import parsedate_to_datetime
 
-from . import config, gemini, news
+from . import claude, config, gemini, news
 
 THRESHOLD = int(config.get("SCORE_THRESHOLD", "6"))
 
@@ -129,7 +129,27 @@ def _pretty_date(raw):
         return raw
 
 
-def draft(note_text, voice_skill, news_item=None):
+def _backend():
+    """Which model writes the post.
+
+    The stack puts drafting on Claude from B1 onward. 'auto' uses Claude when a
+    key is present and falls back to Gemini when it is not, so the pipeline
+    keeps working either way rather than failing closed on a missing key.
+    """
+    choice = (config.get("DRAFT_BACKEND", "auto") or "auto").lower()
+    if choice == "claude":
+        return "claude"
+    if choice == "gemini":
+        return "gemini"
+    return "claude" if claude.available() else "gemini"
+
+
+def _clean(post):
+    post = post.strip().replace("\u2014", " - ").replace("\u2013", " - ")
+    return re.sub(r" {2,}", " ", post)
+
+
+def draft(note_text, voice_skill, news_item=None, backend=None):
     """Return (post_text, model, news_item_or_None_if_unused)."""
     prompt = ["This note is your only source of facts about her, her company and "
               "her products:\n\n---\n%s\n---" % note_text]
@@ -142,16 +162,18 @@ def draft(note_text, voice_skill, news_item=None):
                _pretty_date(news_item["date"]), news_item.get("summary", ""))
         )
     prompt.append("\nWrite the post.")
+    prompt = "\n".join(prompt)
+    system = DRAFT_SYSTEM % voice_skill
 
-    text, model = gemini.generate(
-        "\n".join(prompt), kind="draft",
-        system=DRAFT_SYSTEM % voice_skill, schema=DRAFT_SCHEMA, temperature=0.8,
-    )
-    data = json.loads(text)
-    post = data.get("post", "").strip()
-    post = post.replace("—", " - ").replace("–", " - ")
-    post = re.sub(r" {2,}", " ", post)
+    backend = backend or _backend()
+    if backend == "claude":
+        data, model = claude.generate_json(prompt, system, DRAFT_SCHEMA)
+    else:
+        text, model = gemini.generate(prompt, kind="draft", system=system,
+                                      schema=DRAFT_SCHEMA, temperature=0.8)
+        data = json.loads(text)
 
+    post = _clean(data.get("post", ""))
     used = news_item if (data.get("used_news") and news_item) else None
     if used:
         post += VERIFY_TEMPLATE % (used["headline"], used["source"],

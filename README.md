@@ -28,7 +28,7 @@ Telegram  ──▶  /api/webhook
                         │     └─ below 6 ──▶ reply with score + reason, save, stop
                         │
                         ├─ keywords ──▶ Google News RSS ──▶ top result
-                        ├─ draft (Gemini, voice skill as system instruction)
+                        ├─ draft (Claude, voice skill as system instruction)
                         ├─ append verify block if the news item was used
                         ├─ save note + draft to Supabase (status: pending)
                         └─ send the draft back to Telegram
@@ -118,6 +118,25 @@ python3 scripts/try_note.py "paste a note here"
 `try_note.py` runs score, news and draft without Telegram or Vercel, which is
 the cheap way to tune the scoring threshold.
 
+## Which model does what
+
+| task | model | why |
+|---|---|---|
+| scoring notes | Gemini Flash | mechanical, no judgment needed |
+| keyword extraction | Gemini Flash | mechanical |
+| fetching news | Google News RSS | free, no key, no account |
+| writing drafts | Claude | holds a voice better across a full post |
+
+`DRAFT_BACKEND` switches this: `auto` (default) uses Claude when
+`ANTHROPIC_API_KEY` is set and falls back to Gemini when it is not, so a missing
+key degrades the draft rather than breaking the pipeline.
+
+```bash
+python3 scripts/compare_models.py "a note"
+```
+
+runs the same note through both and prints them side by side.
+
 ## Cost ceiling
 
 The Gemini key is on the free tier: 20 requests per day, per model. One note
@@ -132,7 +151,8 @@ of sixty notes is not, and would need billing enabled.
 |---|---|
 | `api/webhook.py` | the Vercel function - routing, APPROVE/REJECT, error handling |
 | `api/_lib/pipeline.py` | score, keyword extraction, draft, verify block |
-| `api/_lib/gemini.py` | Gemini client, per-model quota fallback |
+| `api/_lib/gemini.py` | Gemini client for scoring and keywords, per-model quota fallback |
+| `api/_lib/claude.py` | Anthropic client for drafting, forced-tool structured output |
 | `api/_lib/news.py` | Google News RSS, no key needed |
 | `api/_lib/store.py` | Supabase REST |
 | `api/_lib/telegram.py` | sendMessage, with 4096-character splitting |
