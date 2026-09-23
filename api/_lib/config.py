@@ -21,9 +21,17 @@ def load():
     _loaded = True
 
 
-def get(name, default=None, required=False):
+def get(name, default=None, required=False, strip=True):
+    """Read an environment variable.
+
+    Values are stripped by default. Pasting a key into a dashboard field very
+    easily carries a trailing newline, and a URL built from one produces a
+    confusing failure a long way from the cause.
+    """
     load()
     val = os.environ.get(name, default)
+    if strip and isinstance(val, str):
+        val = val.strip()
     if required and not val:
         raise RuntimeError("Missing required environment variable: %s" % name)
     return val
