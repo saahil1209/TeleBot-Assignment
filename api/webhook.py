@@ -58,6 +58,9 @@ def process(update):
         telegram.send(chat_id, HELP)
         return
 
+    if store.note_exists(chat_id, message_id):
+        return  # a Telegram retry of something already handled
+
     try:
         result = pipeline.run(text)
     except Exception as e:
@@ -130,12 +133,17 @@ class handler(BaseHTTPRequestHandler):
             self._respond(200, {"ok": True, "note": "unparseable body ignored"})
             return
 
+        # Answer Telegram first. A full pass takes two Gemini calls, a news
+        # fetch and a draft - far longer than Telegram waits before declaring
+        # the webhook failed and redelivering it. The invocation stays alive
+        # after the response is flushed, so the work continues below.
+        self._respond(200, {"ok": True})
+        try:
+            self.wfile.flush()
+        except Exception:
+            pass
+
         try:
             process(update)
         except Exception:
             traceback.print_exc()
-            # Always 200: a non-200 makes Telegram retry the same update forever.
-            self._respond(200, {"ok": False, "error": "handled"})
-            return
-
-        self._respond(200, {"ok": True})

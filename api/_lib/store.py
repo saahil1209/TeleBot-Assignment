@@ -54,6 +54,21 @@ def active_voice_skill():
     return bundled.read_text() if bundled.exists() else None
 
 
+def note_exists(chat_id, message_id):
+    """Has this exact Telegram message already been handled?
+
+    Telegram retries a webhook it considers failed, so the same update arrives
+    more than once. This is checked before any model call, so a retry costs
+    nothing against the free tier's daily quota.
+    """
+    if message_id is None:
+        return False
+    rows = _request(
+        "GET", "notes?chat_id=eq.%d&telegram_message_id=eq.%d&select=id,status"
+        % (chat_id, message_id))
+    return rows[0] if rows else False
+
+
 def save_note(chat_id, message_id, content, score, reason, status):
     rows = _request(
         "POST", "notes?on_conflict=chat_id,telegram_message_id",
