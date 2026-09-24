@@ -91,7 +91,11 @@ use - every example in it illustrates a shape, never a claim about her.
 3. No greeting, no sign-off, no hashtags, no emoji, no exclamation marks, no
    closing engagement question.
 4. Spaced hyphens ( - ) as dashes, never em dashes. British spelling.
-5. Length follows the note. 400-700 words is the ceiling for a note carrying a
+5. Put a blank line between paragraphs. The `post` value is a single string and
+   paragraphs are separated inside it by two newline characters. A post returned
+   as one unbroken block is unusable and will be rejected, however good the
+   writing is. Three to six sentences per paragraph.
+5b. Length follows the note. 400-700 words is the ceiling for a note carrying a
    full mechanism with evidence behind it; a thinner note makes a shorter post,
    200-350 words, and that is a correct outcome rather than a failure. Never
    pad to reach a length. Full paragraphs of 3-6 sentences throughout.
@@ -188,8 +192,9 @@ LINK: %s
 SOURCES_TEMPLATE = """
 
 ─────────────────────────────────
-SOURCES USED (%d)
-Peer-reviewed, from PubMed. This post is built on these, not your own data:
+PEER-REVIEWED SOURCES CONSULTED (%d)
+From PubMed. Your note had no data of its own, so the post draws on these.
+Not all of them necessarily appear in the text:
 %s
 ⚠ Check these before publishing — you are the author of these claims
 ─────────────────────────────────"""
@@ -337,6 +342,18 @@ def _backend():
     return "claude" if claude.available() else "gemini"
 
 
+def _reparagraph(post, per=4):
+    """Last-resort paragraphing when the model returns one block.
+
+    Splits on sentence ends every `per` sentences. Crude, and only ever reached
+    when the model ignored the formatting rule - but a readable approximation
+    beats a wall of text she has to reformat by hand.
+    """
+    parts = re.split(r"(?<=[.?!])\s+", post.strip())
+    out = ["".join(" ".join(parts[i:i + per])) for i in range(0, len(parts), per)]
+    return "\n\n".join(p.strip() for p in out if p.strip())
+
+
 def _clean(post):
     post = post.strip().replace("\u2014", " - ").replace("\u2013", " - ")
     return re.sub(r" {2,}", " ", post)
@@ -356,9 +373,11 @@ def draft(note_text, voice_skill, news_item=None, backend=None, findings=""):
             % findings)
     if news_item:
         prompt.append(
-            "\nA current news item was found. If it is genuinely relevant, use it to "
-            "make the post timely. If it does not fit naturally, ignore it "
-            "entirely.\n\n  headline: %s\n  source: %s\n  date: %s\n  summary: %s"
+            "\nA current news item was found. Use it only if it genuinely sharpens "
+            "the argument. A passing mention that an article 'highlighted' "
+            "something adds nothing and should be left out - when research "
+            "findings are also supplied, prefer those and drop the news item. "
+            "If it does not fit naturally, ignore it entirely.\n\n  headline: %s\n  source: %s\n  date: %s\n  summary: %s"
             % (news_item["headline"], news_item["source"],
                _pretty_date(news_item["date"]), news_item.get("summary", ""))
         )
@@ -375,6 +394,10 @@ def draft(note_text, voice_skill, news_item=None, backend=None, findings=""):
         data = json.loads(text)
 
     post = _clean(data.get("post", ""))
+    if "\n\n" not in post and len(post.split()) > 150:
+        # One unbroken block. Her guide is explicit that she never writes this
+        # way, so rebuild the paragraphs rather than send it as it stands.
+        post = _reparagraph(post)
     used = news_item if (data.get("used_news") and news_item) else None
     if used:
         post += VERIFY_TEMPLATE % (used["headline"], used["source"],
