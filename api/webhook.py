@@ -22,9 +22,33 @@ HELP = (
     "comes back here.\n\n"
     "Send text or a voice note - voice gets transcribed first.\n"
     "Reply APPROVE or REJECT to a draft to record your decision.\n"
+    "COPY returns the post body on its own, clean, ready to paste.\n"
     "PUBLISH sends an already-approved draft to LinkedIn, when that is enabled."
     % pipeline.THRESHOLD
 )
+
+
+def _copy(chat_id):
+    """COPY - the approved draft, body only, as its own message.
+
+    LinkedIn's API cannot create a draft: PUBLISHED is the only lifecycleState
+    accepted on create, and the composer's drafts folder is a client-side
+    feature the API does not expose. So the nearest honest thing is to hand her
+    a clean message she can copy in one gesture and save as a draft inside
+    LinkedIn herself.
+    """
+    row = store.latest_approved_draft(chat_id) or store.latest_pending_draft(chat_id)
+    if not row:
+        telegram.send(chat_id, "No draft to copy yet.")
+        return
+    body = linkedin.post_body(row["content"])
+    if not body:
+        telegram.send(chat_id, "That draft is empty once annotations are stripped.")
+        return
+    telegram.send(chat_id, "Clean copy below - nothing but the post body. "
+                           "Copy it, paste it into LinkedIn, save it as a draft "
+                           "there.")
+    telegram.send(chat_id, body)
 
 
 def _publish(chat_id):
@@ -104,6 +128,9 @@ def process(update):
     command = text.upper().lstrip("/")
     if command in ("APPROVE", "REJECT"):
         _decision(chat_id, "approved" if command == "APPROVE" else "rejected")
+        return
+    if command == "COPY":
+        _copy(chat_id)
         return
     if command == "PUBLISH":
         _publish(chat_id)

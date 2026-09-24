@@ -93,7 +93,17 @@ use - every example in it illustrates a shape, never a claim about her.
    service, or on a flat understated line.
 7. Set used_news to true only if the news item actually appears in the post.
    If it does not fit naturally, ignore it and set used_news to false. Never
-   force it."""
+   force it.
+8. When a sentence needs a supporting fact you do not have, delete the
+   sentence. Do not supply the fact. This is the single rule most often broken,
+   because the missing fact is usually easy to guess and the guess is usually
+   right - and a right guess she cannot source is still a claim published on
+   someone else's authority.
+9. Before you return the post, read it back one sentence at a time and ask of
+   each: which line of the note is this? If you cannot point at one, cut the
+   sentence. A shorter post that survives that check is the correct output.
+   Every claim is audited against the note afterwards, so anything invented
+   will be found and shown to her."""
 
 CLAIM_SCHEMA = {
     "type": "object",

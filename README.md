@@ -4,6 +4,22 @@ Meera drops a note into Telegram. The pipeline scores it, finds a news angle,
 drafts a LinkedIn post in her voice, and sends it back to the same chat for her
 to approve. Nothing is published.
 
+## Getting a draft into LinkedIn
+
+`COPY` replies with the post body on its own - annotations stripped - so she can
+copy it in one gesture and paste it into LinkedIn.
+
+It cannot be saved straight into LinkedIn's drafts folder, and no tool can do
+that. The Posts API states that `PUBLISHED` is the only `lifecycleState`
+accepted during creation; `DRAFT` can be read back but never created. The
+drafts in LinkedIn's composer are a client-side feature the API does not
+expose. Anything claiming to save drafts to LinkedIn is either posting live or
+storing the draft somewhere else and calling it a draft.
+
+The `drafts` table is the real drafts folder here, and it keeps the verify
+block, the claim flags and the source note, all of which LinkedIn's composer
+would discard.
+
 ## Voice notes
 
 She captures by voice. A voice note goes to Telegram `getFile`, downloads, and
