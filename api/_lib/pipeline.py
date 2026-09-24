@@ -373,16 +373,21 @@ def draft(note_text, voice_skill, news_items=None, backend=None, findings=""):
             "published findings rather than as hers - she did not run these "
             "studies and must not appear to claim she did.\n\n---\n%s\n---"
             % findings)
-    if news_item:
+    news_items = news_items or []
+    if news_items:
+        listed = "\n\n".join(
+            "  [%d] %s\n      %s, %s\n      %s"
+            % (i, n["headline"], n["source"], _pretty_date(n["date"]),
+               n.get("summary", ""))
+            for i, n in enumerate(news_items, 1))
         prompt.append(
-            "\nA current news item was found. Use it only if it genuinely sharpens "
-            "the argument. A passing mention that an article 'highlighted' "
-            "something adds nothing and should be left out - when research "
-            "findings are also supplied, prefer those and drop the news item. "
-            "If it does not fit naturally, ignore it entirely.\n\n  headline: %s\n  source: %s\n  date: %s\n  summary: %s"
-            % (news_item["headline"], news_item["source"],
-               _pretty_date(news_item["date"]), news_item.get("summary", ""))
-        )
+            "\nCurrent news items, any or none of which you may use. Take one only "
+            "if it genuinely sharpens the argument. A passing mention that an "
+            "article 'highlighted' something adds nothing and should be left out. "
+            "When research findings are also supplied, prefer those. Taking none "
+            "is the right answer more often than not - set used_news false and "
+            "used_news_index 0.\n\n%s\n\nSet used_news_index to the number of the "
+            "item you actually used." % listed)
     prompt.append("\nWrite the post.")
     prompt = "\n".join(prompt)
     system = DRAFT_SYSTEM % voice_skill
