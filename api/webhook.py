@@ -181,6 +181,27 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _selftest(self):
+        """One minimal call per capability, so a live key can be checked without
+        pushing a real note through and burning quota on a draft."""
+        out = {}
+        try:
+            txt, model = pipeline.gemini.generate("Reply with: ok", kind="fast",
+                                                  temperature=0)
+            out["generate"] = {"ok": True, "model": model, "said": txt[:20]}
+        except Exception as e:
+            out["generate"] = {"ok": False, "error": str(e)[:300]}
+        try:
+            txt, model, sources = pipeline.gemini.generate(
+                "What is the stratum corneum lipid matrix? Cite a source.",
+                kind="fast", temperature=0, search=True)
+            out["grounded_search"] = {"ok": True, "model": model,
+                                      "sources": len(sources),
+                                      "first": (sources[0]["uri"][:80] if sources else None)}
+        except Exception as e:
+            out["grounded_search"] = {"ok": False, "error": str(e)[:300]}
+        return out
+
     def do_GET(self):
         # Booleans and lengths only - never the values. Enough to tell a missing
         # variable from a malformed one (a trailing newline on a pasted token is
@@ -191,7 +212,7 @@ class handler(BaseHTTPRequestHandler):
                 return False
             return {"set": True, "len": len(raw), "clean": raw == raw.strip()}
 
-        self._respond(200, {
+        payload = {
             "ok": True,
             "service": "skinstinct-telebot",
             "threshold": pipeline.THRESHOLD,
@@ -204,7 +225,10 @@ class handler(BaseHTTPRequestHandler):
             )},
             "publishing": {"enabled": linkedin.enabled(),
                            "configured": linkedin.configured()},
-        })
+        }
+        if "selftest" in (self.path or ""):
+            payload["selftest"] = self._selftest()
+        self._respond(200, payload)
 
     def do_POST(self):
         secret = config.get("TELEGRAM_WEBHOOK_SECRET")
