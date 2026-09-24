@@ -95,6 +95,38 @@ pipeline exists to prevent. The model is told to set `used_news` to false and
 ignore the item when it does not fit naturally, so the block only appears when
 the news actually made it into the post.
 
+## Notes with no data of her own
+
+The gate is a mechanism - something that happens for a reason she can explain.
+That is the one thing that cannot be added at drafting time without inventing
+it. Whether she has her own numbers decides how the post gets built, not
+whether it gets built:
+
+- **Her measurements are in the note** - the post stands on them.
+- **No measurements** - `pubmed.py` finds peer-reviewed papers on the
+  mechanism, pulls their abstracts, and the draft is told to attribute those as
+  published findings rather than as hers. Every paper is listed under the post
+  with its journal, date and link.
+
+Sources come from PubMed rather than Gemini's grounded search, for two reasons.
+Grounded search needs a search quota separate from generation which this
+project does not have - a live self-test returns generation `ok` and grounded
+search `429` on every model in the chain. And for formulation chemistry, papers
+are better evidence than news.
+
+PubMed's E-utilities need no key, no account and have no quota, so this path
+costs one Gemini call (to build the queries) and nothing else.
+
+If the lookup fails or finds nothing, the draft says so on its face rather than
+going out quietly unsourced:
+
+```
+⚠ NO SOURCES BEHIND THIS POST
+Your note had no measurements of its own, and <reason>.
+Every supporting fact here is the model's, not yours and not a
+published source's. Treat the whole post as unverified.
+```
+
 ## Claim audit
 
 The drafting prompt forbids inventing facts. That is a request, not a
@@ -225,7 +257,8 @@ of sixty notes is not, and would need billing enabled.
 | `api/_lib/pipeline.py` | score, keyword extraction, draft, verify block |
 | `api/_lib/gemini.py` | Gemini client for scoring and keywords, per-model quota fallback |
 | `api/_lib/claude.py` | Anthropic client for drafting, forced-tool structured output |
-| `api/_lib/news.py` | Google News RSS, no key needed |
+| `api/_lib/news.py` | Google News RSS for the timeliness angle, no key needed |
+| `api/_lib/pubmed.py` | peer-reviewed sources for notes with no first-party data |
 | `api/_lib/store.py` | Supabase REST |
 | `api/_lib/telegram.py` | sendMessage, with 4096-character splitting |
 | `voice-skill.txt` | the voice instruction sent to Gemini |

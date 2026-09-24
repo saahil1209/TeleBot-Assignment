@@ -4,7 +4,7 @@ import json
 import re
 from email.utils import parsedate_to_datetime
 
-from . import claude, config, gemini, news
+from . import claude, config, gemini, news, pubmed
 
 THRESHOLD = int(config.get("SCORE_THRESHOLD", "6"))
 
@@ -189,7 +189,7 @@ SOURCES_TEMPLATE = """
 
 ─────────────────────────────────
 SOURCES USED (%d)
-This post is built on published research, not your own data:
+Peer-reviewed, from PubMed. This post is built on these, not your own data:
 %s
 ⚠ Check these before publishing — you are the author of these claims
 ─────────────────────────────────"""
@@ -255,27 +255,62 @@ Rules:
 Write 6-10 short factual lines. No prose, no conclusions, no advice."""
 
 
-def research(note_text, mechanism=""):
-    """Grounded search for citable support.
+QUERY_SCHEMA = {
+    "type": "object",
+    "properties": {"queries": {"type": "array", "items": {"type": "string"}}},
+    "required": ["queries"],
+}
 
-    Returns (findings, sources, model, error). `error` is a short string when
-    the search could not run - never swallowed, because a research failure and
-    "no evidence exists" are completely different facts and a post built on the
-    first must say so.
+QUERY_SYSTEM = """You turn a founder's note into PubMed search queries.
+
+Two or three queries, each 3-6 words, using the terms a paper would use rather
+than the terms a customer would. "stratum corneum lipid barrier", not "why skin
+feels tight". Drop brand names, drop her own product names, drop anything
+conversational.
+
+Short beats specific. A query with too many qualifiers returns nothing at
+all, which is worse than a broad query returning four papers."""
+
+
+def research(note_text, mechanism=""):
+    """Find published evidence for a note with no first-party data.
+
+    Sources come from PubMed, not from Gemini's grounded search: grounding needs
+    a search quota this project does not have, and for formulation chemistry
+    papers are better evidence than news anyway.
+
+    Returns (findings, sources, model, error). `error` is never swallowed - a
+    failed lookup and "no evidence exists" are different facts, and a post built
+    on the first has to say so.
     """
     try:
-        text, model, sources = gemini.generate(
-            "Mechanism to support: %s\n\nFrom her note:\n%s\n\nFind published "
-            "evidence bearing on this." % (mechanism or "see note", note_text),
-            kind="fast", system=RESEARCH_SYSTEM, temperature=0.2, search=True,
-        )
-        if not sources:
-            return text, [], model, "search returned no citable sources"
-        return text, sources, model, None
+        raw, model = gemini.generate(
+            "Note:\n%s\n\nMechanism: %s" % (note_text, mechanism or "see note"),
+            kind="fast", system=QUERY_SYSTEM, schema=QUERY_SCHEMA, temperature=0.2)
+        queries = json.loads(raw).get("queries", [])[:3]
     except gemini.GeminiError as e:
-        return "", [], None, "research unavailable (%s)" % e
-    except Exception as e:
-        return "", [], None, "research failed (%s)" % type(e).__name__
+        return "", [], None, "could not build search queries (%s)" % e
+
+    papers, seen = [], set()
+    for q in queries:
+        for paper in pubmed.search(q, limit=3):
+            if paper["pmid"] not in seen:
+                seen.add(paper["pmid"])
+                papers.append(paper)
+    if not papers:
+        return "", [], model, "no papers found on PubMed for %s" % (
+            ", ".join(repr(q) for q in queries) or "this note")
+
+    papers = papers[:5]
+    texts = pubmed.abstracts([p["pmid"] for p in papers])
+    findings = "\n\n".join(
+        "[%d] %s (%s, %s)\n%s" % (i, p["title"], p["journal"], p["date"],
+                                  texts.get(p["pmid"], "abstract unavailable"))
+        for i, p in enumerate(papers, 1))
+
+    sources = [{"title": "%s (%s, %s)" % (p["title"], p["journal"], p["date"]),
+                "uri": p["uri"]} for p in papers]
+    return findings, sources, model, None
 
 
 def _pretty_date(raw):
