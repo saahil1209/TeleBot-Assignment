@@ -18,25 +18,34 @@ SCORE_SCHEMA = {
 }
 
 SCORE_SYSTEM = """You score raw notes from a skincare founder on whether they can
-become a LinkedIn post. You are strict. Most captured fragments are not posts.
+become a LinkedIn post. You are strict about substance and indifferent to
+polish.
 
-Score 0-10 against four things. A note scores well only when it has all four:
+Score 0-10 on two things, and only these two:
 
-1. A mechanism - something that happens for a reason she can explain.
-2. An assumption it knocks down - the reader ends up believing something
-   different.
-3. Evidence she owns, or evidence she can name honestly.
-4. An exit - a question the reader could put to a brand or a manufacturer.
+1. A mechanism - something that happens for a reason she can explain. Not that
+   a thing happened, but why it happens.
+2. Evidence she owns or can name honestly - her own measurements, stability
+   pulls, CoAs, returns, batch data, or a supplier document she has read.
 
-Guidance on the range:
-  0-2  a logistics reminder, a task, a fragment with no claim in it
-  3-5  a real thought, but missing a mechanism or any evidence
-  6-7  has all four, thin in one of them
-  8-10 a mechanism with evidence behind it and a clear assumption to break
+Both must be present for a 6. Neither can be added later without inventing
+them, which is why they are the gate.
 
-Do not inflate. A note that would produce a generic post scores below 6, however
-interesting it sounds. The reason is one line, and it names what is missing
-rather than praising what is there."""
+Do NOT mark a note down for missing a framing, an argument, an angle, a
+conclusion, or a closing question. Those are the drafting step's job and it
+supplies them. A note that is a plain technical dump with real numbers in it is
+excellent raw material and should score highly, even though it reads like
+nothing at all.
+
+The range:
+  0-2   a task, a reminder, a logistics note, a fragment with no claim
+  3-5   a real thought or opinion, but no mechanism, or a mechanism with
+        nothing measured behind it
+  6-7   a mechanism with evidence, thin in one of them
+  8-10  a mechanism with her own numbers behind it
+
+The reason is one line. When you score below 6, name which of the two is
+missing. When you score 6 or above, name the mechanism you found."""
 
 KEYWORD_SCHEMA = {
     "type": "object",
@@ -103,7 +112,15 @@ use - every example in it illustrates a shape, never a claim about her.
    each: which line of the note is this? If you cannot point at one, cut the
    sentence. A shorter post that survives that check is the correct output.
    Every claim is audited against the note afterwards, so anything invented
-   will be found and shown to her."""
+   will be found and shown to her.
+10. The note is raw material, not an outline. It will often be a plain
+   technical dump with no argument in it. Finding the argument is your job:
+   the assumption a reader holds that these facts overturn, and the question
+   they should ask because of it. Build both out of what is in the note - never
+   by adding facts to make an argument work.
+11. When the note covers several subjects, choose the one carrying the most
+   evidence and write only about that. One mechanism explained properly beats
+   three listed. The rest stay in the note for another post."""
 
 CLAIM_SCHEMA = {
     "type": "object",

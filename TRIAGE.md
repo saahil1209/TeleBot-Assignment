@@ -17,31 +17,37 @@ That is one data point, not a law. But it points the same way her voice guide
 does: a mechanism that corrects an assumption, explained at length, ending in
 something the reader can act on.
 
-## Develop a note if it has all four
+## The gate: substance only
 
-1. **A mechanism.** Something that happens for a reason she can explain - pH
-   against a stability threshold, a base that determines whether an active
-   arrives, a protocol inherited without being questioned. A note that only
-   reports an outcome has no post in it yet.
-2. **An assumption it knocks down.** The reader should finish holding a
-   different belief than they started with. "Concentration on the label is not
-   the thing that matters" is the model.
-3. **Evidence she actually owns, or evidence she can name honestly.** Her own
-   CoAs, returns, stability tests, repeat purchase rates. Failing that, external
-   research cited generically. A note whose central claim cannot be sourced
-   either way is parked, not written around.
-4. **An exit.** A question the reader can put to a brand, a manufacturer, or
-   customer service. If the note dead-ends in an opinion, it is not a post.
+Two things, and a note needs both:
 
-## Park a note if any of these hold
+1. **A mechanism.** Something that happens for a reason she can explain. Not
+   that a thing happened - why it happens.
+2. **Evidence she owns, or can name honestly.** Her own measurements, stability
+   pulls, CoAs, returns, batch data, a supplier document she has read.
 
-- It needs medical authority. She is a formulator, not a dermatologist.
-- It names a competitor, or lands blame on a person rather than a system.
-- The only claim in it is ahead of the data she has.
-- It is a product announcement with no mechanism attached.
-- It is a reaction with no fact under it - real feeling, nothing to brief.
+Neither can be added at drafting time without inventing it. That is what makes
+them the gate.
 
-## Parked is not dead
+## What is deliberately not in the gate
+
+An argument, an angle, an assumption to overturn, a closing question. Those are
+framing, and the drafting step supplies them - it is what her published posts
+actually do with raw observations.
+
+Requiring them in the raw note had this backwards, and two live notes proved
+it. A voice note carrying nine real formulation numbers scored 4 and was
+rejected for lacking a closing question. An anecdote with no numbers in it
+scored 7, drafted, and needed eight invented facts to reach length.
+
+The gate was rejecting the material that is safest to draft from and passing
+the material that forces the model to invent. Under the current rubric the
+voice note scores 8 and the anecdote scores lower, which is the right way round.
+
+A plain technical dump with real numbers and no argument in it is excellent raw
+material. It should score highly even though it reads like nothing at all.
+
+## Parked is not dead## Parked is not dead
 
 Two parked notes on the same mechanism often merge into one developable note.
 Check `status: parked` before every drafting run.
