@@ -31,8 +31,10 @@ def _chain(kind):
 
 
 def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7,
-             audio=None):
-    """Return (text, model_used). Raises GeminiError when every model fails.
+             audio=None, search=False):
+    """Return (text, model_used) or (text, model_used, sources) when search=True.
+
+    Raises GeminiError when every model fails.
 
     `audio` is an optional (mime_type, base64_data) pair sent alongside the
     prompt - used to transcribe Telegram voice notes without a separate
@@ -51,9 +53,12 @@ def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7,
     }
     if system:
         body["systemInstruction"] = {"parts": [{"text": system}]}
-    if schema:
+    if schema and not search:
+        # Grounded search and a forced response schema cannot be combined.
         body["generationConfig"]["responseMimeType"] = "application/json"
         body["generationConfig"]["responseSchema"] = schema
+    if search:
+        body["tools"] = [{"google_search": {}}]
 
     problems = []
     for model in _chain(kind):
@@ -77,7 +82,17 @@ def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7,
                 if not text.strip():
                     problems.append("%s: empty response" % model)
                     break
-                return text.strip(), model
+                if not search:
+                    return text.strip(), model
+                sources, seen = [], set()
+                grounding = cands[0].get("groundingMetadata") or {}
+                for chunk in grounding.get("groundingChunks") or []:
+                    web = chunk.get("web") or {}
+                    uri = web.get("uri")
+                    if uri and uri not in seen:
+                        seen.add(uri)
+                        sources.append({"title": web.get("title", ""), "uri": uri})
+                return text.strip(), model, sources
             except urllib.error.HTTPError as e:
                 raw = e.read().decode(errors="replace")
                 try:

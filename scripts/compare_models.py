@@ -18,8 +18,8 @@ note = " ".join(sys.argv[1:]).strip() or sys.stdin.read().strip()
 if not note:
     sys.exit('Usage: compare_models.py "the note text"')
 
-score, reason, score_model = pipeline.score(note)
-print("score %d/10 [%s] - %s\n" % (score, score_model, reason))
+score, reason, score_model, own_evidence, mechanism = pipeline.score(note)
+print("score %d/10 [%s] - %s\nown evidence: %s\n" % (score, score_model, reason, own_evidence))
 if score < pipeline.THRESHOLD:
     sys.exit("Below threshold, nothing to compare.")
 

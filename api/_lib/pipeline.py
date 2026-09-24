@@ -13,39 +13,41 @@ SCORE_SCHEMA = {
     "properties": {
         "score": {"type": "integer"},
         "reason": {"type": "string"},
+        "has_own_evidence": {"type": "boolean"},
+        "mechanism": {"type": "string"},
     },
-    "required": ["score", "reason"],
+    "required": ["score", "reason", "has_own_evidence"],
 }
 
 SCORE_SYSTEM = """You score raw notes from a skincare founder on whether they can
-become a LinkedIn post. You are strict about substance and indifferent to
-polish.
+become a LinkedIn post.
 
-Score 0-10 on two things, and only these two:
+The gate is one thing: **a mechanism**. Something that happens for a reason she
+can explain - not that a thing happened, but why it happens. A mechanism cannot
+be added later without inventing it, so a note without one is not a post.
 
-1. A mechanism - something that happens for a reason she can explain. Not that
-   a thing happened, but why it happens.
-2. Evidence she owns or can name honestly - her own measurements, stability
-   pulls, CoAs, returns, batch data, or a supplier document she has read.
+Everything else is framing, and the drafting step supplies it: the argument, the
+assumption being overturned, the closing question. Never mark a note down for
+missing those.
 
-Both must be present for a 6. Neither can be added later without inventing
-them, which is why they are the gate.
-
-Do NOT mark a note down for missing a framing, an argument, an angle, a
-conclusion, or a closing question. Those are the drafting step's job and it
-supplies them. A note that is a plain technical dump with real numbers in it is
-excellent raw material and should score highly, even though it reads like
-nothing at all.
+Set `has_own_evidence` true only when the note contains her own measurements -
+stability pulls, batch data, CoAs, returns, percentages she has tested, a
+supplier document she has read. A customer anecdote is not owned evidence. A
+remembered fact about how skin works is not owned evidence. This flag decides
+whether the post is built on her data or on researched sources, so be strict
+about it - but it does not affect the score.
 
 The range:
-  0-2   a task, a reminder, a logistics note, a fragment with no claim
-  3-5   a real thought or opinion, but no mechanism, or a mechanism with
-        nothing measured behind it
-  6-7   a mechanism with evidence, thin in one of them
-  8-10  a mechanism with her own numbers behind it
+  0-3   no mechanism: a greeting, a task, a reminder, a bare opinion, a fragment
+  4-5   a mechanism only half-formed, or a topic with no explanation attached
+  6-7   a clear mechanism she can explain, no data of her own behind it
+  8-10  a clear mechanism with her own measurements behind it
 
-The reason is one line. When you score below 6, name which of the two is
-missing. When you score 6 or above, name the mechanism you found."""
+A conceptual explanation with no numbers in it is a 6 or 7, not a 4. It is a
+publishable post that will be built on researched sources.
+
+The reason is one line naming the mechanism you found, or saying what is missing
+when there is none."""
 
 KEYWORD_SCHEMA = {
     "type": "object",
@@ -183,6 +185,33 @@ LINK: %s
 ⚠ Check this before publishing — you are the author of this claim
 ─────────────────────────────────"""
 
+SOURCES_TEMPLATE = """
+
+─────────────────────────────────
+SOURCES USED (%d)
+This post is built on published research, not your own data:
+%s
+⚠ Check these before publishing — you are the author of these claims
+─────────────────────────────────"""
+
+
+UNSOURCED_TEMPLATE = """
+
+─────────────────────────────────
+⚠ NO SOURCES BEHIND THIS POST
+Your note had no measurements of its own, and %s.
+Every supporting fact here is the model's, not yours and not a
+published source's. Treat the whole post as unverified.
+─────────────────────────────────"""
+
+
+def sources_block(sources):
+    if not sources:
+        return ""
+    lines = "\n".join("%d. %s\n   %s" % (i, s.get("title") or "untitled", s["uri"])
+                       for i, s in enumerate(sources[:8], 1))
+    return SOURCES_TEMPLATE % (len(sources[:8]), lines)
+
 
 def score(note_text):
     text, model = gemini.generate(
@@ -191,7 +220,8 @@ def score(note_text):
     )
     data = json.loads(text)
     value = max(0, min(10, int(data.get("score", 0))))
-    return value, data.get("reason", "").strip(), model
+    return (value, data.get("reason", "").strip(), model,
+            bool(data.get("has_own_evidence")), data.get("mechanism", ""))
 
 
 def search_phrase(note_text):
@@ -205,6 +235,47 @@ def search_phrase(note_text):
         return json.loads(text).get("phrase", "").strip()
     except Exception:
         return ""
+
+
+RESEARCH_SYSTEM = """You find published evidence for a skincare founder's post.
+
+She has a mechanism she wants to write about but no data of her own for it. Find
+real, citable support: peer-reviewed findings, regulatory positions, industry
+standards, published figures.
+
+Rules:
+  - Report only what the search results actually say. If the results do not
+    support the mechanism, say so plainly - that is a useful answer.
+  - Give figures with their units and context, and say what kind of evidence
+    each is: a controlled study, an in-vitro result, a regulatory limit, an
+    industry convention.
+  - Say when evidence is thin, contested or absent. Do not smooth it over.
+  - Never state a figure the results did not give you.
+
+Write 6-10 short factual lines. No prose, no conclusions, no advice."""
+
+
+def research(note_text, mechanism=""):
+    """Grounded search for citable support.
+
+    Returns (findings, sources, model, error). `error` is a short string when
+    the search could not run - never swallowed, because a research failure and
+    "no evidence exists" are completely different facts and a post built on the
+    first must say so.
+    """
+    try:
+        text, model, sources = gemini.generate(
+            "Mechanism to support: %s\n\nFrom her note:\n%s\n\nFind published "
+            "evidence bearing on this." % (mechanism or "see note", note_text),
+            kind="fast", system=RESEARCH_SYSTEM, temperature=0.2, search=True,
+        )
+        if not sources:
+            return text, [], model, "search returned no citable sources"
+        return text, sources, model, None
+    except gemini.GeminiError as e:
+        return "", [], None, "research unavailable (%s)" % e
+    except Exception as e:
+        return "", [], None, "research failed (%s)" % type(e).__name__
 
 
 def _pretty_date(raw):
@@ -236,10 +307,18 @@ def _clean(post):
     return re.sub(r" {2,}", " ", post)
 
 
-def draft(note_text, voice_skill, news_item=None, backend=None):
+def draft(note_text, voice_skill, news_item=None, backend=None, findings=""):
     """Return (post_text, model, news_item_or_None_if_unused)."""
     prompt = ["This note is your only source of facts about her, her company and "
               "her products:\n\n---\n%s\n---" % note_text]
+    if findings:
+        prompt.append(
+            "\nShe has no measurements of her own for this one, so the supporting "
+            "facts come from published research below. You may use these, and only "
+            "these, for anything the note does not cover. Attribute them as "
+            "published findings rather than as hers - she did not run these "
+            "studies and must not appear to claim she did.\n\n---\n%s\n---"
+            % findings)
     if news_item:
         prompt.append(
             "\nA current news item was found. If it is genuinely relevant, use it to "
@@ -297,7 +376,7 @@ def flag_block(claims, has_news):
 
 def run(note_text):
     """Full pass. Returns a dict describing what happened."""
-    value, reason, score_model = score(note_text)
+    value, reason, score_model, own_evidence, mechanism = score(note_text)
     if value < THRESHOLD:
         return {"drafted": False, "score": value, "reason": reason,
                 "score_model": score_model}
@@ -307,15 +386,26 @@ def run(note_text):
     if not voice:
         raise RuntimeError("No active voice skill in Supabase. Run scripts/seed_voice.py")
 
-    item = news.top_result(search_phrase(note_text))
-    post, model, used = draft(note_text, voice, item)
+    # With her own measurements the post stands on them. Without, it is built on
+    # published research that gets cited, rather than on whatever the drafting
+    # model happens to believe.
+    findings, sources, research_error = "", [], None
+    if not own_evidence:
+        findings, sources, _, research_error = research(note_text, mechanism)
 
-    # The hard rules tell the drafting model not to invent facts. They are a
-    # request, not a guarantee, so the draft is audited against its own sources
-    # and anything untraceable is surfaced rather than left in fluent prose.
-    claims, claim_model = check_claims(post, note_text, used)
+    item = news.top_result(search_phrase(note_text))
+    post, model, used = draft(note_text, voice, item, findings=findings)
+
+    permitted = findings + ("\n" + json.dumps(used) if used else "")
+    claims, claim_model = check_claims(post, note_text + "\n" + permitted, used)
     post += flag_block(claims, bool(used))
+    if sources:
+        post += sources_block(sources)
+    elif not own_evidence:
+        post += UNSOURCED_TEMPLATE % (research_error or "no sources found")
 
     return {"drafted": True, "score": value, "reason": reason,
             "score_model": score_model, "post": post, "model": model,
-            "news": used, "claims": claims, "claim_model": claim_model}
+            "news": used, "claims": claims, "claim_model": claim_model,
+            "sources": sources, "own_evidence": own_evidence,
+            "research_error": research_error}
