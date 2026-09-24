@@ -24,15 +24,15 @@ if score < pipeline.THRESHOLD:
     sys.exit("Below threshold, nothing to compare.")
 
 voice = store.active_voice_skill()
-item = news.top_result(pipeline.search_phrase(note))
-print("news angle: %s\n" % (item["headline"] if item else "none found"))
+items = news.search(pipeline.search_phrase(note), limit=3)
+print("news candidates: %d\n" % len(items))
 
 backends = ["gemini"] + (["claude"] if claude.available() else [])
 if len(backends) == 1:
     print("ANTHROPIC_API_KEY not set - showing Gemini only.\n")
 
 for backend in backends:
-    post, model, used = pipeline.draft(note, voice, item, backend=backend)
+    post, model, used = pipeline.draft(note, voice, items, backend=backend)
     body = post.split("─────")[0].strip()
     print("=" * 72)
     print("%s  [%s]  %d words  news used: %s"

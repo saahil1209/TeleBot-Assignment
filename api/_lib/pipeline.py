@@ -62,6 +62,8 @@ DRAFT_SCHEMA = {
     "type": "object",
     "properties": {
         "used_news": {"type": "boolean"},
+        # 1-based index of the candidate actually used; 0 for none.
+        "used_news_index": {"type": "integer"},
         "post": {"type": "string"},
     },
     "required": ["used_news", "post"],
@@ -359,7 +361,7 @@ def _clean(post):
     return re.sub(r" {2,}", " ", post)
 
 
-def draft(note_text, voice_skill, news_item=None, backend=None, findings=""):
+def draft(note_text, voice_skill, news_items=None, backend=None, findings=""):
     """Return (post_text, model, news_item_or_None_if_unused)."""
     prompt = ["This note is your only source of facts about her, her company and "
               "her products:\n\n---\n%s\n---" % note_text]
@@ -393,12 +395,15 @@ def draft(note_text, voice_skill, news_item=None, backend=None, findings=""):
                                       schema=DRAFT_SCHEMA, temperature=0.8)
         data = json.loads(text)
 
+    idx = int(data.get("used_news_index") or 0)
     post = _clean(data.get("post", ""))
     if "\n\n" not in post and len(post.split()) > 150:
         # One unbroken block. Her guide is explicit that she never writes this
         # way, so rebuild the paragraphs rather than send it as it stands.
         post = _reparagraph(post)
-    used = news_item if (data.get("used_news") and news_item) else None
+    used = None
+    if data.get("used_news") and 1 <= idx <= len(news_items):
+        used = news_items[idx - 1]
     if used:
         post += VERIFY_TEMPLATE % (used["headline"], used["source"],
                                    _pretty_date(used["date"]), used["url"])
@@ -451,8 +456,8 @@ def run(note_text):
     if not own_evidence:
         findings, sources, _, research_error = research(note_text, mechanism)
 
-    item = news.top_result(search_phrase(note_text))
-    post, model, used = draft(note_text, voice, item, findings=findings)
+    items = news.search(search_phrase(note_text), limit=3)
+    post, model, used = draft(note_text, voice, items, findings=findings)
 
     permitted = findings + ("\n" + json.dumps(used) if used else "")
     claims, claim_model = check_claims(post, note_text + "\n" + permitted, used)

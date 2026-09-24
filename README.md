@@ -127,6 +127,27 @@ Every supporting fact here is the model's, not yours and not a
 published source's. Treat the whole post as unverified.
 ```
 
+## The news angle
+
+`news.py` queries Google News RSS and returns several candidates rather than
+the single top hit, because the top hit was reliably junk: market-research
+listings from aggregators, supplement-affiliate "Reviews 2026" pages, and
+listicles. Three real examples that reached drafts before this: an InStyle
+piece on glowing skin, a Times of India habits listicle, and an IndexBox
+market forecast for whitening serums in Romania.
+
+Two filters run before anything reaches the model:
+
+- **Source and headline** - press-release wires and aggregators are dropped, as
+  are headlines containing market-report or affiliate-spam phrasing.
+- **Age** - anything over 120 days is dropped.
+
+What survives is usually trade press: Dermatology Times on newly permitted UV
+filters, Telangana Today on imported products skipping India's mandatory
+registration. The drafting step gets up to three of these and is told that
+taking none is the right answer more often than not, then reports which one it
+used so the verify block cites the right article.
+
 ## Claim audit
 
 The drafting prompt forbids inventing facts. That is a request, not a
@@ -257,7 +278,7 @@ of sixty notes is not, and would need billing enabled.
 | `api/_lib/pipeline.py` | score, keyword extraction, draft, verify block |
 | `api/_lib/gemini.py` | Gemini client for scoring and keywords, per-model quota fallback |
 | `api/_lib/claude.py` | Anthropic client for drafting, forced-tool structured output |
-| `api/_lib/news.py` | Google News RSS for the timeliness angle, no key needed |
+| `api/_lib/news.py` | Google News RSS, filtered, no key needed |
 | `api/_lib/pubmed.py` | peer-reviewed sources for notes with no first-party data |
 | `api/_lib/store.py` | Supabase REST |
 | `api/_lib/telegram.py` | sendMessage, with 4096-character splitting |
