@@ -80,7 +80,15 @@ use - every example in it illustrates a shape, never a claim about her.
 3. No greeting, no sign-off, no hashtags, no emoji, no exclamation marks, no
    closing engagement question.
 4. Spaced hyphens ( - ) as dashes, never em dashes. British spelling.
-5. 400-700 words in full paragraphs of 3-6 sentences.
+5. Length follows the note. 400-700 words is the ceiling for a note carrying a
+   full mechanism with evidence behind it; a thinner note makes a shorter post,
+   200-350 words, and that is a correct outcome rather than a failure. Never
+   pad to reach a length. Full paragraphs of 3-6 sentences throughout.
+5a. Padding, specifically, means inventing narrative: how long something took,
+   what happened next, what was decided afterwards, how it was resolved, or
+   what other companies, brands or regulators do and do not do. None of that is
+   in the note unless the note says it. If you reach the end of the note's
+   substance, stop writing.
 6. End on a question the reader can put to a brand, a manufacturer or customer
    service, or on a flat understated line.
 7. Set used_news to true only if the news item actually appears in the post.
@@ -121,6 +129,10 @@ Do not include:
   - opinions, judgments or arguments
   - restatements of something in the note, even in different words
   - reasoning that follows from facts in the note
+  - who the author is: her name, her company's name, that she founded it, that
+    it makes skincare, that she has a formulation background. That is standing
+    context, not a claim she needs a source for. "our formulations at
+    Skinstinct" is not a finding.
 
 Quote each claim in `claim` exactly as it appears in the post, trimmed to the
 sentence. Put in `why` the reason it is not traceable, in one short clause.

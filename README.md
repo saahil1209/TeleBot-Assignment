@@ -153,11 +153,18 @@ the cheap way to tune the scoring threshold.
 | scoring notes | Gemini Flash | mechanical, no judgment needed |
 | keyword extraction | Gemini Flash | mechanical |
 | fetching news | Google News RSS | free, no key, no account |
-| writing drafts | Claude | holds a voice better across a full post |
+| writing drafts | **Gemini** (see below) | Claude in the stack; no key available |
 
-`DRAFT_BACKEND` switches this: `auto` (default) uses Claude when
-`ANTHROPIC_API_KEY` is set and falls back to Gemini when it is not, so a missing
-key degrades the draft rather than breaking the pipeline.
+**A documented deviation.** The stack puts drafting on Claude from B1 onward,
+because it holds a voice better across a full post. There is no Anthropic key
+for this build, so drafting runs on Gemini and `DRAFT_BACKEND` is set to
+`gemini` explicitly rather than left on `auto` - a deliberate choice recorded in
+config beats a silent fallback that looks like the spec was met.
+
+The Claude backend is built and wired (`api/_lib/claude.py`). Adding
+`ANTHROPIC_API_KEY` and setting `DRAFT_BACKEND=claude` (or `auto`) switches it
+with no code change, and makes `scripts/compare_models.py` able to run the
+side-by-side comparison the stack asks for.
 
 ```bash
 python3 scripts/compare_models.py "a note"
