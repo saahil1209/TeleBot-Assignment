@@ -14,14 +14,48 @@ from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from _lib import config, pipeline, store, telegram  # noqa: E402
+from _lib import (config, linkedin, pipeline, store, telegram,  # noqa: E402
+                  transcribe)
 
 HELP = (
     "Send a note and I'll score it. Anything at or above %d gets drafted and "
     "comes back here.\n\n"
-    "Reply APPROVE or REJECT to the draft to record your decision."
+    "Send text or a voice note - voice gets transcribed first.\n"
+    "Reply APPROVE or REJECT to a draft to record your decision.\n"
+    "PUBLISH sends an already-approved draft to LinkedIn, when that is enabled."
     % pipeline.THRESHOLD
 )
+
+
+def _publish(chat_id):
+    """PUBLISH - the only irreversible action, and the only one that needs two
+    separate decisions from her: APPROVE first, then this."""
+    if not linkedin.enabled():
+        telegram.send(chat_id, "Publishing is switched off. The draft is yours "
+                               "to post.")
+        return
+    if not linkedin.configured():
+        telegram.send(chat_id, "Publishing is on but LinkedIn is not configured "
+                               "(LINKEDIN_ACCESS_TOKEN / LINKEDIN_PERSON_URN).")
+        return
+
+    row = store.latest_approved_draft(chat_id)
+    if not row:
+        telegram.send(chat_id, "Nothing approved and waiting. Reply APPROVE to a "
+                               "draft first - publishing needs both steps.")
+        return
+
+    try:
+        post_id = linkedin.publish(row["content"])
+    except Exception as e:
+        telegram.send(chat_id, "Did not publish: %s\n\nThe draft is untouched "
+                               "and still approved." % e)
+        return
+
+    store.mark_published(row["id"], post_id)
+    telegram.send(chat_id, "Published to LinkedIn (%s). The verify block and any "
+                           "claim flags were stripped - only the post body went "
+                           "out." % post_id)
 
 
 def _decision(chat_id, verdict):
@@ -47,12 +81,32 @@ def process(update):
     chat_id = (msg.get("chat") or {}).get("id")
     text = (msg.get("text") or msg.get("caption") or "").strip()
     message_id = msg.get("message_id")
-    if not chat_id or not text:
+    if not chat_id:
+        return
+
+    source, transcript_model = "text", None
+    if not text and transcribe.audio_part(msg):
+        if store.note_exists(chat_id, message_id):
+            return
+        try:
+            text, transcript_model = transcribe.transcribe(msg)
+            source = "voice"
+        except Exception as e:
+            telegram.send(chat_id, "Could not transcribe that: %s" % e,
+                          reply_to=message_id)
+            return
+        telegram.send(chat_id, "Transcribed (%d words). Scoring it now."
+                      % len(text.split()), reply_to=message_id)
+
+    if not text:
         return
 
     command = text.upper().lstrip("/")
     if command in ("APPROVE", "REJECT"):
         _decision(chat_id, "approved" if command == "APPROVE" else "rejected")
+        return
+    if command == "PUBLISH":
+        _publish(chat_id)
         return
     if command in ("START", "HELP"):
         telegram.send(chat_id, HELP)
@@ -69,7 +123,7 @@ def process(update):
 
     if not result["drafted"]:
         store.save_note(chat_id, message_id, text, result["score"],
-                        result["reason"], "rejected")
+                        result["reason"], "rejected", source, transcript_model)
         telegram.send(
             chat_id,
             "No draft for this one.\n\nScore %d/10 - %s\n\nIt stays saved. Two "
@@ -80,7 +134,7 @@ def process(update):
         return
 
     note = store.save_note(chat_id, message_id, text, result["score"],
-                           result["reason"], "drafted")
+                           result["reason"], "drafted", source, transcript_model)
     store.save_draft(note["id"] if note else None, chat_id, result["post"],
                      result["model"], result.get("news"),
                      result.get("claims"), result.get("claim_model"))
@@ -118,7 +172,10 @@ class handler(BaseHTTPRequestHandler):
                 "TELEGRAM_BOT_TOKEN", "GEMINI_API_KEY",
                 "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
                 "ANTHROPIC_API_KEY", "TELEGRAM_WEBHOOK_SECRET",
+                "LINKEDIN_ACCESS_TOKEN", "LINKEDIN_PERSON_URN",
             )},
+            "publishing": {"enabled": linkedin.enabled(),
+                           "configured": linkedin.configured()},
         })
 
     def do_POST(self):

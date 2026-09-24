@@ -30,12 +30,23 @@ def _chain(kind):
     return [override] + [m for m in base if m != override] if override else base
 
 
-def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7):
-    """Return (text, model_used). Raises GeminiError when every model fails."""
+def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7,
+             audio=None):
+    """Return (text, model_used). Raises GeminiError when every model fails.
+
+    `audio` is an optional (mime_type, base64_data) pair sent alongside the
+    prompt - used to transcribe Telegram voice notes without a separate
+    speech-to-text service.
+    """
     key = config.get("GEMINI_API_KEY", required=True)
 
+    parts = [{"text": prompt}]
+    if audio:
+        mime, data = audio
+        parts.append({"inline_data": {"mime_type": mime, "data": data}})
+
     body = {
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "contents": [{"role": "user", "parts": parts}],
         "generationConfig": {"temperature": temperature},
     }
     if system:

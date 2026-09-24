@@ -4,16 +4,37 @@ Meera drops a note into Telegram. The pipeline scores it, finds a news angle,
 drafts a LinkedIn post in her voice, and sends it back to the same chat for her
 to approve. Nothing is published.
 
+## Voice notes
+
+She captures by voice. A voice note goes to Telegram `getFile`, downloads, and
+is transcribed by Gemini directly - no separate speech-to-text service. The
+transcript then enters the pipeline as an ordinary note, and `notes.source`
+records whether it arrived as voice or text.
+
+The transcription prompt asks for a verbatim transcript and tells the model to
+write `[inaudible]` rather than guess, because a wrong pH value or percentage is
+worse than a gap.
+
 ## The cut
 
 Of the nine checks, check 07 - Judgment Protected - is the one that fails, and
 it fails deliberately. She passed on two consultants who built end-to-end tools.
 She wants to remain the author of everything published under her name.
 
-So the pipeline stops at the draft. No scheduler, no auto-post, no LinkedIn
-credentials anywhere in this repo. The worst failure available is a draft she
-rejects, never a post that goes live unchecked. Anything added later that
-publishes on her behalf breaks the one property that makes this worth running.
+So nothing publishes on its own. There is no scheduler and no auto-post, and
+approval alone sends nothing anywhere.
+
+Publishing to LinkedIn exists as an option, off by default, and it takes two
+separate decisions from her: APPROVE records that the draft is good, and a
+later explicit PUBLISH sends it. She reads the draft before either. That keeps
+check 07 intact - the judgment is still hers, per post - while removing the
+copy-and-paste step she never objected to.
+
+What would break the cut is publishing as a side effect of approval, or on a
+schedule. Neither is built, and neither should be.
+
+Publishing also strips the verify block and the claim flags first. Those are
+written for her, not for her readers.
 
 ## Flow
 

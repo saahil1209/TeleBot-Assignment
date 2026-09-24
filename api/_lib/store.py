@@ -69,13 +69,15 @@ def note_exists(chat_id, message_id):
     return rows[0] if rows else False
 
 
-def save_note(chat_id, message_id, content, score, reason, status):
+def save_note(chat_id, message_id, content, score, reason, status,
+              source="text", transcript_model=None):
     rows = _request(
         "POST", "notes?on_conflict=chat_id,telegram_message_id",
         [{
             "chat_id": chat_id, "telegram_message_id": message_id,
             "content": content, "score": score,
             "score_reason": reason, "status": status,
+            "source": source, "transcript_model": transcript_model,
         }],
         prefer="return=representation,resolution=merge-duplicates",
     )
@@ -105,6 +107,21 @@ def latest_pending_draft(chat_id):
         "drafts?chat_id=eq.%d&status=eq.pending&order=created_at.desc&limit=1" % chat_id,
     )
     return rows[0] if rows else None
+
+
+def latest_approved_draft(chat_id):
+    """Most recent approved draft that has not been published."""
+    rows = _request(
+        "GET", "drafts?chat_id=eq.%d&status=eq.approved&published_at=is.null"
+        "&order=decided_at.desc&limit=1" % chat_id)
+    return rows[0] if rows else None
+
+
+def mark_published(draft_id, post_id):
+    return _request(
+        "PATCH", "drafts?id=eq.%d" % draft_id,
+        {"status": "published", "published_at": "now()", "linkedin_post_id": post_id},
+        prefer="return=representation")
 
 
 def decide_draft(draft_id, status):
