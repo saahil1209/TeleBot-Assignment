@@ -191,34 +191,44 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def _selftest(self):
-        """One minimal call per capability, so a live key can be checked without
-        pushing a real note through and burning quota on a draft."""
+    def _selftest(self, full=False):
+        """Stage probes.
+
+        The free-tier budget is 20 requests per model per day and one note costs
+        about four, so the Gemini probes are opt-in via ?selftest=full. Running
+        them casually consumes the quota it is meant to be measuring - which is
+        exactly what happened during development.
+        """
         out = {}
-        try:
-            txt, model = pipeline.gemini.generate("Reply with: ok", kind="fast",
-                                                  temperature=0)
-            out["generate"] = {"ok": True, "model": model, "said": txt[:20]}
-        except Exception as e:
-            out["generate"] = {"ok": False, "error": str(e)[:300]}
-        try:
+        if not full:
+            out["gemini"] = "skipped - use ?selftest=full (spends quota)"
+        if full:
+            try:
+                txt, model = pipeline.gemini.generate("Reply with: ok", kind="fast",
+                                                      temperature=0)
+                out["generate"] = {"ok": True, "model": model, "said": txt[:20]}
+            except Exception as e:
+                out["generate"] = {"ok": False, "error": str(e)[:300]}
+        if full:
+          try:
             txt, model, sources = pipeline.gemini.generate(
                 "What is the stratum corneum lipid matrix? Cite a source.",
                 kind="fast", temperature=0, search=True)
             out["grounded_search"] = {"ok": True, "model": model,
                                       "sources": len(sources)}
-        except Exception as e:
+          except Exception as e:
             out["grounded_search"] = {"ok": False, "error": str(e)[:200]}
 
         # The draft chain is a different model list from the fast chain, so a
         # healthy fast probe says nothing about whether drafting can run.
-        try:
-            txt, model = pipeline.gemini.generate(
-                "Reply with a JSON object: {\"post\": \"ok\", \"used_news\": false}",
-                kind="draft", schema=pipeline.DRAFT_SCHEMA, temperature=0)
-            out["draft_chain"] = {"ok": True, "model": model}
-        except Exception as e:
-            out["draft_chain"] = {"ok": False, "error": str(e)[:300]}
+        if full:
+            try:
+                txt, model = pipeline.gemini.generate(
+                    "Reply with a JSON object: {\"post\": \"ok\", \"used_news\": false}",
+                    kind="draft", schema=pipeline.DRAFT_SCHEMA, temperature=0)
+                out["draft_chain"] = {"ok": True, "model": model}
+            except Exception as e:
+                out["draft_chain"] = {"ok": False, "error": str(e)[:300]}
 
         # PubMed is plain HTTPS to NCBI - worth confirming Vercel can reach it.
         try:
@@ -262,7 +272,7 @@ class handler(BaseHTTPRequestHandler):
                            "configured": linkedin.configured()},
         }
         if "selftest" in (self.path or ""):
-            payload["selftest"] = self._selftest()
+            payload["selftest"] = self._selftest("full" in (self.path or ""))
         self._respond(200, payload)
 
     def do_POST(self):
