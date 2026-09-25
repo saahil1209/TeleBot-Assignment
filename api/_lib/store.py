@@ -70,7 +70,7 @@ def note_exists(chat_id, message_id):
 
 
 def save_note(chat_id, message_id, content, score, reason, status,
-              source="text", transcript_model=None):
+              source="text", transcript_model=None, error_detail=None):
     rows = _request(
         "POST", "notes?on_conflict=chat_id,telegram_message_id",
         [{
@@ -78,6 +78,7 @@ def save_note(chat_id, message_id, content, score, reason, status,
             "content": content, "score": score,
             "score_reason": reason, "status": status,
             "source": source, "transcript_model": transcript_model,
+            "error_detail": error_detail,
         }],
         prefer="return=representation,resolution=merge-duplicates",
     )

@@ -145,7 +145,17 @@ def process(update):
     try:
         result = pipeline.run(text)
     except Exception as e:
-        telegram.send(chat_id, "Could not process that note: %s" % e)
+        # Keep the note and the failure together. Previously the error went to
+        # Telegram and the row was never written, so a failing note left no
+        # trace at all in the data.
+        detail = "%s: %s\n%s" % (type(e).__name__, e, traceback.format_exc()[-1200:])
+        try:
+            store.save_note(chat_id, message_id, text, None, None, "error",
+                            source, transcript_model, detail)
+        except Exception:
+            pass
+        telegram.send(chat_id, "Could not process that note: %s" % e,
+                      reply_to=message_id)
         raise
 
     if not result["drafted"]:
