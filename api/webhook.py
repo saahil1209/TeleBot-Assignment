@@ -142,6 +142,16 @@ def process(update):
     if store.note_exists(chat_id, message_id):
         return  # a Telegram retry of something already handled
 
+    # Record the note before any model call. A Vercel timeout kills the process
+    # outright rather than raising, so without this a note that runs long leaves
+    # no trace at all - not even an error row - which is exactly what happened
+    # while debugging. The row is updated in place once the pipeline finishes.
+    try:
+        store.save_note(chat_id, message_id, text, None, None, "processing",
+                        source, transcript_model)
+    except Exception:
+        pass
+
     try:
         result = pipeline.run(text)
     except Exception as e:

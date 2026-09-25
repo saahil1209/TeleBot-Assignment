@@ -6,6 +6,7 @@ chain instead of failing the request.
 """
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -22,6 +23,14 @@ DRAFT_CHAIN = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-3-flash-preview",
 
 class GeminiError(RuntimeError):
     pass
+
+
+# The whole request must finish inside the serverless function's maxDuration.
+# Four models, two attempts each, at a 120s socket timeout is up to 16 minutes -
+# far past it - and a hard timeout kills the process without raising, so the
+# note vanishes with no error recorded. Every call is bounded instead.
+REQUEST_TIMEOUT = 45
+TOTAL_BUDGET = int(os.environ.get("GEMINI_TOTAL_BUDGET", "150"))
 
 
 def _chain(kind):
@@ -61,7 +70,11 @@ def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7,
         body["tools"] = [{"google_search": {}}]
 
     problems = []
+    deadline = time.time() + TOTAL_BUDGET
     for model in _chain(kind):
+        if time.time() > deadline:
+            problems.append("%s: skipped, time budget spent" % model)
+            break
         for attempt in range(2):
             req = urllib.request.Request(
                 ENDPOINT.format(model=model),
@@ -69,7 +82,8 @@ def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7,
                 headers={"Content-Type": "application/json", "x-goog-api-key": key},
             )
             try:
-                with urllib.request.urlopen(req, timeout=120) as r:
+                remaining = max(5, min(REQUEST_TIMEOUT, deadline - time.time()))
+                with urllib.request.urlopen(req, timeout=remaining) as r:
                     payload = json.load(r)
                 cands = payload.get("candidates") or []
                 if not cands:
@@ -103,13 +117,13 @@ def generate(prompt, kind="draft", system=None, schema=None, temperature=0.7,
                 if e.code == 429:
                     problems.append("%s: out of quota" % model)
                     break
-                if e.code in (500, 503) and attempt == 0:
+                if e.code in (500, 503) and attempt == 0 and time.time() < deadline - 10:
                     time.sleep(2)
                     continue
                 problems.append("%s: %s %s" % (model, e.code, msg))
                 break
             except Exception as e:  # network, timeout
-                if attempt == 0:
+                if attempt == 0 and time.time() < deadline - 10:
                     time.sleep(2)
                     continue
                 problems.append("%s: %s" % (model, e))
