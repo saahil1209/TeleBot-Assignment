@@ -196,10 +196,35 @@ class handler(BaseHTTPRequestHandler):
                 "What is the stratum corneum lipid matrix? Cite a source.",
                 kind="fast", temperature=0, search=True)
             out["grounded_search"] = {"ok": True, "model": model,
-                                      "sources": len(sources),
-                                      "first": (sources[0]["uri"][:80] if sources else None)}
+                                      "sources": len(sources)}
         except Exception as e:
-            out["grounded_search"] = {"ok": False, "error": str(e)[:300]}
+            out["grounded_search"] = {"ok": False, "error": str(e)[:200]}
+
+        # The draft chain is a different model list from the fast chain, so a
+        # healthy fast probe says nothing about whether drafting can run.
+        try:
+            txt, model = pipeline.gemini.generate(
+                "Reply with a JSON object: {\"post\": \"ok\", \"used_news\": false}",
+                kind="draft", schema=pipeline.DRAFT_SCHEMA, temperature=0)
+            out["draft_chain"] = {"ok": True, "model": model}
+        except Exception as e:
+            out["draft_chain"] = {"ok": False, "error": str(e)[:300]}
+
+        # PubMed is plain HTTPS to NCBI - worth confirming Vercel can reach it.
+        try:
+            from _lib import pubmed
+            papers = pubmed.search_or_raise("stratum corneum lipid barrier", 2)
+            out["pubmed"] = {"ok": True, "papers": len(papers),
+                             "first": papers[0]["title"][:60] if papers else None}
+        except Exception as e:
+            out["pubmed"] = {"ok": False, "error": str(e)[:200]}
+
+        try:
+            items = pipeline.news.search("skincare formulation regulation", 3)
+            out["news"] = {"ok": True, "candidates": len(items),
+                           "first": items[0]["headline"][:60] if items else None}
+        except Exception as e:
+            out["news"] = {"ok": False, "error": str(e)[:200]}
         return out
 
     def do_GET(self):
